@@ -44,44 +44,120 @@ def load_IQBinary_int16(file):
 # Ts is sampling time
 # fc is center frequency (if the requested frequency is not baseband)
 
-# given a positive freq, find the indice of the closest FFT bucket <= requested freq
-def fpos2indFloor(f, n, Ts, fc=0):
-    return int(np.floor(np.round(n*(f-fc)*Ts, 3)))
+# positive frequency to lower FFT bucket:
+#   given a positive freq, find the indice of the closest FFT bucket <= requested freq
+def fpos2indFloor(f, n, Ts, fc=0, fout=False):
+    ind = int(np.floor(np.round(n*(f-fc)*Ts, 3)))
+    if fout:
+        freq = fc + (ind/n)*(1/Ts)
+        return ind, freq
+    else:
+        return ind
 
 
-# given a positive freq, find the indice of the closest FFT bucket >= requested freq
-def fpos2indCeil(f, n, Ts, fc=0):
-    return int(np.ceil(np.round(n*(f-fc)*Ts, 3)))
+# positive frequency to upper FFT bucket:
+#   given a positive freq, find the indice of the closest FFT bucket >= requested freq
+def fpos2indCeil(f, n, Ts, fc=0, fout=False):
+    ind = int(np.ceil(np.round(n*(f-fc)*Ts, 3)))
+    if fout:
+        freq = fc + (ind/n)*(1/Ts)
+        return ind, freq
+    else:
+        return ind
 
 
-# given a negative freq, find the indice of the closest FFT bucket <= requested freq
-def fneg2indFloor(f, n, Ts, fc=0):
-    return int(n + np.floor(np.round(n*(f+fc)*Ts, 3)))
+# negative frequency to lower FFT bucket:
+#   given a negative freq, find the indice of the closest FFT bucket <= requested freq
+def fneg2indFloor(f, n, Ts, fc=0, fout=False):
+    indOff = np.floor(np.round(n*(f+fc)*Ts, 3))
+    ind = int(n + indOff)
+    if fout:
+        freq = fc + (indOff/n)*(1/Ts)
+        return ind, freq
+    else:
+        return ind
 
 
-def fneg2indCeil(f, n, Ts, fc=0):
-    return int(n + np.ceil(np.round(n*(f+fc)*Ts, 3)))
+# negative frequency to upper FFT bucket:
+#   given a negative freq, find the indice of the closest FFT bucket >= requested freq
+def fneg2indCeil(f, n, Ts, fc=0, fout=False):
+    indOff = np.ceil(np.round(n*(f+fc)*Ts, 3))
+    ind = int(n + indOff)
+    if fout:
+        freq = fc + (indOff/n)*(1/Ts)
+        return ind, freq
+    else:
+        return ind
 
-# TODO: signal mixing functions
 
-# these operate on frequency data. Another function is responsible for converting time series data into frequency data
-def fft_basebandShift_singleSided(fftdata, indStart, nBuckets):
-    # NOTE: this does not work. We may not even need this
+# given a set of positive frequency indices, get their corresponding complements in the negative frequency spectrum
+def compFreq(n, indStart, indEnd):
+    compStart = int(n - 1) - int(indStart)
+    compEnd = int(n -1) - int(indEnd)
+    return compStart, compEnd
+
+
+# convenience function that gets the new sampling time after we've discarded some elements from the FFT series. Useful for finding new rate after mixing
+def resampleTime(Ts, nfft, nfftNew):
+    return Ts*nfftNew/nfft
+
+
+# signal mixing functions
+
+# these operate on frequency data. Another function is responsible for
+# converting time series data into frequency data
+# indStart is included. indEnd is not
+# (tested on fft data of various sizes)
+def fft_basebandShift(fftdata, indStart, indEnd):
     n = fftdata.size
+    if 2*(indEnd - indStart) > n:
+        raise ValueError("requested bandwidth is larger than bandwidth of data")
     # fbb = np.zeros(2*nBuckets)
     # fbb[0:nBuckets] = fftdata[indStart:(indStart+nBuckets)]
     # fbb[nBuckets:] = fftdata[(n-(indStart+nBuckets)):(n-indStart)]
-    fbb = np.concatenate((fftdata[indStart:(indStart+nBuckets)],
-                          fftdata[(n-(indStart+nBuckets)):(n-indStart)]))
+    fbb = np.concatenate((fftdata[indStart:indEnd],
+                          fftdata[(n-indEnd):(n-indStart)]))
     return fbb
 
 
+def basebandShift(data, Ts, ):
+    raise NotImplementedError
+
+
 # generic matched filter function
+# NOTE: not tested
 def matchedFilter(data, template, mode='full'):
     m = np.flipud(np.conj(template))
     np.convolve(data, m, mode=mode)
+    raise NotImplementedError
 
 
-#
-def chirpMF(data, fc, fs, fcChirp, bw, TChirp):
-    pass
+# helper function to generate a quadrature chirp
+# t is a time series of the instances when we want to generate samples
+def IQChirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True):
+    chirpI = sig.chirp(t, f0, t1, f1,
+                    method=method,
+                    phi=phi,
+                    vertex_zero=vertex_zero)
+    chirpQ = sig.chirp(t, f0, t1, f1,
+                    method=method,
+                    phi=phi-90.0,
+                    vertex_zero=vertex_zero)
+    return (chirpI + 1j*chirpQ)    
+
+
+def chirpTemplate(Ts, fc, bw, TChirp, type='up'):
+    t = np.arange(0, TChirp, Ts)
+    if type == 'up':
+        fStart = fc - bw/2
+        fEnd = fc + bw/2
+    elif type == 'down':
+        fStart = fc + bw/2
+        fEnd = fc - bw/2
+    chirp = IQChirp(t, fStart, TChirp, fEnd)
+    return chirp
+
+
+# return the output of a data series 
+def chirpMF(data, Ts, fcData, fcChirp, bwChirp, TChirp):
+    raise NotImplementedError
