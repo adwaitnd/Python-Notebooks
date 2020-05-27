@@ -99,7 +99,7 @@ def compFreq(n, indStart, indEnd):
 
 # convenience function that gets the new sampling time after we've discarded some elements from the FFT series. Useful for finding new rate after mixing
 def resampleTime(Ts, nfft, nfftNew):
-    return Ts*nfftNew/nfft
+    return Ts*nfft/nfftNew
 
 
 # signal mixing functions
@@ -120,16 +120,32 @@ def fft_basebandShift(fftdata, indStart, indEnd):
     return fbb
 
 
-def basebandShift(data, Ts, ):
-    raise NotImplementedError
-
-
-# generic matched filter function
-# NOTE: not tested
-def matchedFilter(data, template, mode='full'):
-    m = np.flipud(np.conj(template))
-    np.convolve(data, m, mode=mode)
-    raise NotImplementedError
+# given a data series recorded at sampling intervals Ts and center frequency fcData,
+# return a new data series with only data in a certain bandwidth around or after fcSignal
+def basebandShift(data, Ts, bwSignal,
+                    fcSignal=0.0, fcData=0.0, signalType='ss'):
+    n = data.size
+    fdata = np.fft.fft(data)
+    if signalType == 'ss':
+        # signal is single sided
+        fStart = fcSignal
+        fEnd = fcSignal + bwSignal
+    elif signalType == 'ds':
+        # signal is double sided
+        fStart = fcSignal - bwSignal/2
+        fEnd = fcSignal + bwSignal/2
+        
+    # TODO: check if the frequencies lie in an acceptable range
+    fmax = fcData + (n/2 -1)/(Ts*n) if n%2 == 0 else fcData + (n-1)/(2*Ts*n)
+    if fStart < fcData or fStart > fmax or fEnd < fcData or fEnd > fmax:
+        raise ValueError("requested bandwidth is out of supported range")
+    
+    indStart, f0 = fpos2indFloor(fStart, n, Ts, fc=fcData, fout=True)
+    indEnd = fpos2indCeil(fEnd, n, Ts, fc=fcData, fout=False)
+    fShifted = fft_basebandShift(fdata, indStart, indEnd+1)
+    dataShifted = np.fft.ifft(fShifted)
+    TsShifted = resampleTime(Ts, n, dataShifted.size)
+    return dataShifted, f0, TsShifted
 
 
 # helper function to generate a quadrature chirp
@@ -156,6 +172,14 @@ def chirpTemplate(Ts, fc, bw, TChirp, type='up'):
         fEnd = fc - bw/2
     chirp = IQChirp(t, fStart, TChirp, fEnd)
     return chirp
+
+
+# generic matched filter function
+# NOTE: not tested
+def matchedFilter(data, template, mode='full'):
+    m = np.flipud(np.conj(template))
+    np.convolve(data, m, mode=mode)
+    raise NotImplementedError
 
 
 # return the output of a data series 
