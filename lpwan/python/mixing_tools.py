@@ -102,12 +102,23 @@ def resampleTime(Ts, nfft, nfftNew):
     return Ts*nfft/nfftNew
 
 
+# get the frequency bins for a frequency shifted signal.
+# Useful in complement with mixing functions
+def fc_fftfreq(n, Ts, fc):
+    posLast = int(np.floor((n-1)/2))
+    negFirst = posLast + 1
+    print("posLast:", posLast)
+    print("negFirst:", negFirst)
+    freq = np.fft.fftfreq(n, Ts)
+    freq[0:posLast+1] = freq[0:posLast+1] + fc
+    freq[negFirst:] = freq[negFirst:] - fc
+    return freq
+
 # signal mixing functions
 
 # these operate on frequency data. Another function is responsible for
 # converting time series data into frequency data
 # indStart is included. indEnd is not
-# (tested on fft data of various sizes)
 def fft_basebandShift(fftdata, indStart, indEnd):
     n = fftdata.size
     if 2*(indEnd - indStart) > n:
@@ -161,25 +172,29 @@ def IQChirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True):
                     vertex_zero=vertex_zero)
     return (chirpI + 1j*chirpQ)    
 
-
-def chirpTemplate(Ts, fc, bw, TChirp, type='up'):
+# template of a linear chirp
+# Ts: sampling time
+# fc: center frequency of chirp
+# bw: bandwidth of chirp
+# TChirp: chirp length
+# f0: center frequency of data (i.e. frequency of 0th bucket of resulting FFT)
+def chirpTemplate(Ts, fc, bw, TChirp, f0=0, direction='up'):
     t = np.arange(0, TChirp, Ts)
-    if type == 'up':
+    if direction == 'up':
         fStart = fc - bw/2
         fEnd = fc + bw/2
-    elif type == 'down':
+    elif direction == 'down':
         fStart = fc + bw/2
         fEnd = fc - bw/2
     chirp = IQChirp(t, fStart, TChirp, fEnd)
-    return chirp
+    return t, chirp
 
 
 # generic matched filter function
-# NOTE: not tested
+# (tested on real and complex series of odd and even sizes - May 27)
 def matchedFilter(data, template, mode='full'):
     m = np.flipud(np.conj(template))
-    np.convolve(data, m, mode=mode)
-    raise NotImplementedError
+    return np.convolve(data, m, mode=mode)
 
 
 # return the output of a data series 
