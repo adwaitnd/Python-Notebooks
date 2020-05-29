@@ -16,7 +16,7 @@ def load_IQBinary_float32(file):
 
 
 def load_IQBinary_float64(file):
-    # I and Q are both 32 bit floats
+    # I and Q are both 64 bit floats
     return np.fromfile(file, dtype=np.complex128)
 
 
@@ -177,8 +177,7 @@ def IQChirp(t, f0, t1, f1, method='linear', phi=0, vertex_zero=True):
 # fc: center frequency of chirp
 # bw: bandwidth of chirp
 # TChirp: chirp length
-# f0: center frequency of data (i.e. frequency of 0th bucket of resulting FFT)
-def chirpTemplate(Ts, fc, bw, TChirp, f0=0, direction='up'):
+def chirpTemplate(Ts, fc, bw, TChirp, direction='up'):
     t = np.arange(0, TChirp, Ts)
     if direction == 'up':
         fStart = fc - bw/2
@@ -187,7 +186,7 @@ def chirpTemplate(Ts, fc, bw, TChirp, f0=0, direction='up'):
         fStart = fc + bw/2
         fEnd = fc - bw/2
     chirp = IQChirp(t, fStart, TChirp, fEnd)
-    return t, chirp
+    return chirp
 
 
 # generic matched filter function
