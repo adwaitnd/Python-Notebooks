@@ -33,6 +33,25 @@ def parseCIREntry(line):
     P = np.power(10, Pdbm/10.0)*np.exp(1j*np.radians(phase))  # complex power in mW
     return toa, P
 
+def parseDelaySpreadEntry(line):
+    """takes a line from the p2m file an outputs a tuple of (rxid, position, distance, delay spread)
+
+    Arguments:
+        line {[string]} -- [line from p2m file]
+
+    Returns:
+        [tuple] -- [( rxid (int), pos (np.array(3,)), dist (float), delaySpread (float) )]
+    """    
+    array = line.split()
+    rxid = int(array[0])
+    x = float(array[1])
+    y = float(array[2])
+    z = float(array[3])
+    pos = np.array([x,y,z])
+    dist = float(array[4])
+    ds = float(array[5])
+    return rxid, pos, dist, ds
+
 ### functions for external use
 
 # load the impulse response of a particular receiver from file
@@ -188,3 +207,22 @@ def computeToaLOS(distDict):
     for ids, dist in distDict.items():
         toa[ids] = dist/c0
     return toa
+
+
+def loadDelaySpread(file, rxset=None, txset=None, txid=None):
+    with open(file, 'r') as fp:
+
+        skipComments(fp)
+
+        # get number of receivers (1st line of data)
+        posDict = {}
+        distDict = {}
+        delaySpreadDict = {}
+        for line in fp:
+            rxid, pos, dist, ds = parseDelaySpreadEntry(line)
+            entryid = ((txset, txid), (rxset, rxid))  # entries for distance and delay spread are identified by both tx and rx involved
+            posDict[(rxset, rxid)] = pos  # position dictionary entries are only identified by the rxset and rxid
+            distDict[entryid] = dist
+            delaySpreadDict[entryid] = ds
+        
+        return delaySpreadDict, posDict, distDict
