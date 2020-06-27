@@ -22,7 +22,8 @@ def parseNoOfTotalRX(line):
 def parseNoOfPaths(line):
     rxID, nPaths = list(int(s) for s in line.split())
     return rxID, nPaths
-    
+
+
 # takes a line of p2m file text and returns a tuple of (toa, complex power (mW))
 def parseCIREntry(line):
     array = line.split()
@@ -121,6 +122,7 @@ def sqlfilename(project, studyarea, projectdir=None):
         return "{:s}/{:s}/{:s}".format(projectdir, studyarea, filename)
     else:
         return "{:s}/{:s}".format(studyarea, filename)
+
 
 def outputfilename(project, studyarea, output, txset, txn, rxset, projectdir=None):
     """output the name of a p2m file for a particular output in a study
@@ -226,3 +228,27 @@ def loadDelaySpread(file, rxset=None, txset=None, txid=None):
             delaySpreadDict[entryid] = ds
         
         return delaySpreadDict, posDict, distDict
+
+
+def resampleCIR(cirList, Ts, tEnd, tOff=0):
+    tsamples = np.arange(tOff, tEnd, Ts)
+    cirArray = np.zeros(tsamples.size, dtype=np.complex64)
+
+    def tRespCIR(cirList, t, Ts):
+        r = np.complex64(0.0)
+        # yes, this could be optimized using some sort of map
+        for cirEntry in cirList:
+            toa, cir = cirEntry
+            dt = t - toa
+            r = r + cir*np.sinc(dt/Ts)
+        return r
+
+    for i,t in enumerate(tsamples):
+        cirArray[i] = tRespCIR(cirList, t, Ts)
+    return cirArray, tsamples
+
+
+def cirListToArray(cirList):
+    tArr = np.array(list(map(lambda x: x[0], cirList)))
+    cirArr = np.array(list(map(lambda x: x[1], cirList)))
+    return cirArr, tArr
